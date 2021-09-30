@@ -1,0 +1,259 @@
+using System;
+using System.Collections.Generic;
+using System.Data;
+using System.Data.SqlClient;
+
+namespace ConectandoComBanco
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            
+            string resposta, nome, email, senha;
+            int id;
+            do
+            {
+                Console.Clear();
+                Console.WriteLine("Selecione uma opção:");
+                Console.WriteLine("1 - Cadastrar usuario");
+                Console.WriteLine("2 - Exibir usuários cadastrados");
+                Console.WriteLine("3 - Buscar por Id");
+                Console.WriteLine("4 - Remover Usuário ");
+                Console.WriteLine("5 - Atualizar Usuario");
+                Console.WriteLine("0 - Sair");
+                resposta = Console.ReadLine();
+
+                switch (resposta)
+                {
+                    case "1":
+                        Console.WriteLine("Digite o nome do usuario");
+                        nome = Console.ReadLine();
+                        Console.WriteLine("Digite o Email do usuario");
+                        email = Console.ReadLine();
+                        Console.WriteLine("Digite o senha do usuario");
+                        senha = Console.ReadLine();
+
+                        Usuario usuario = new Usuario(nome, email, senha);
+
+                        CadastrarUsuario(usuario);
+                        
+                        break;
+                    
+                    case "2":
+                        ExibirListaUsuarios(ListarUsuarios());
+                        Console.ReadKey();
+
+                        break;
+
+                    case "3":
+                        Console.WriteLine("Digite o Id do usuario");
+                        id = int.Parse(Console.ReadLine());
+                       
+
+                        ExibirListaUsuarios(BuscarUsuarioPorId(id));
+                        Console.ReadKey();
+
+                        break;
+
+                    case "4":
+                        Console.WriteLine("Digite o id do usuario que deseja remover");
+                        id = int.Parse(Console.ReadLine());
+
+                        ExibirListaUsuarios(RemoverUsuario(id));
+                        Console.ReadKey();
+                        
+                        break;
+                    
+                    case "5":
+                        Console.WriteLine("Digite o id do usuario que deseja alterar");
+                        id = int.Parse(Console.ReadLine());
+
+                        Console.WriteLine("Digite o nome: ");
+                        nome = Console.ReadLine();
+
+                        Console.WriteLine("Digite o novo email: ");
+                        email = Console.ReadLine();
+
+                        var listaRetornada = AtualizarUsuario(id, nome, email);
+                        ExibirListaUsuarios(listaRetornada);
+                        Console.ReadKey();
+
+                        break;
+                }
+            } while (resposta != "0");
+
+        }//fim main
+
+        static void TestarConexao()
+        {
+            try
+            {
+                //tetar executar
+                var connection = Conexao.PegarConexao();
+                connection.Open();
+                //Faz as solicitações
+                connection.Close();
+
+            }
+            catch (Exception ex)
+            {
+
+                Console.WriteLine("A mensagem de erro: " + ex.Message);
+            }
+        }//fim TestarConexao
+        static void CadastrarUsuario(Usuario usuario)
+        {
+            try
+            {
+                var connection = Conexao.PegarConexao();//Para onde enviaresmos os dados
+                connection.Open(); //Aqui Abrimos a Conexão
+                var query = "insert into usuarios (usuarioNome, usuarioEmail, usuarioSenha) values(@nome, @email, @senha)"; // Instrução
+                var command = new SqlCommand(query, connection);
+
+                command.Parameters.Add("@nome", SqlDbType.VarChar).Value = usuario.Nome;
+                command.Parameters.Add("@email", SqlDbType.VarChar).Value = usuario.Email;
+                command.Parameters.Add("@senha", SqlDbType.VarChar).Value = usuario.Senha;
+                command.ExecuteNonQuery();
+                connection.Close();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Opps erro encontrado :" + ex.Message);
+            }
+
+        }
+        // Vamos criar um método para buscar todos os usuários no banco de dados
+        static List<Usuario> ListarUsuarios()
+        {
+            List<Usuario> listaUsuarios = new List<Usuario>(); // Criamos uma lista vazia para receber os usuários do banco.
+
+            var connection = Conexao.PegarConexao();//Para onde enviaresmos os dados
+            connection.Open(); //Aqui Abrimos a Conexão
+            var query = "select usuariosid, usuarionome, usuarioemail, usuariosenha from usuarios";
+
+            // Criando comando para juntar a instrução com o banco de dado
+            var command = new SqlCommand(query, connection);
+            var dataset = new DataSet(); //Armazenar de forma tabulada - Criou uma área para armazenar os dados do banco
+            var adapter = new SqlDataAdapter(command);// <---Passamos o comando com a query e a connection
+            adapter.Fill(dataset); // Usando o adaptador(Adapter) conseguimos inserir os dados do banco no dataset
+
+            var linhas = dataset.Tables[0].Rows;
+
+            foreach (DataRow item in linhas) // cada item é um array de dados
+            {
+                var colunas = item.ItemArray;
+                var id = int.Parse(colunas[0].ToString());
+                var nome = colunas[1].ToString();
+                var email = colunas[2].ToString();
+                var senha = colunas[3].ToString();
+
+                Usuario usuario = new Usuario(id, nome, email, senha);
+                listaUsuarios.Add(usuario);
+            }
+            connection.Close();
+            return listaUsuarios;
+        }//fim método listarUsuarios
+        static void ExibirListaUsuarios(List<Usuario> listaDeUsuarios)
+        {
+            //Aqui vamos exibir o conteúdo da lista
+
+            Console.WriteLine("Lista de usuários cadastrados");
+            foreach (var item in listaDeUsuarios)
+            {
+                Console.WriteLine($"ID: {item.Id} Nome: {item.Nome} Email: {item.Email} Senha: {item.Senha}");
+            }
+        }
+        static List<Usuario> BuscarUsuarioPorId(int id)
+        {
+            try
+            {
+                var connection = Conexao.PegarConexao();
+                connection.Open();
+                var query = "Select * from usuarios where usuariosId = @id";
+                var command = new SqlCommand(query, connection);
+
+                command.Parameters.Add("@id", SqlDbType.Int).Value = id;
+
+                var dataset = new DataSet();
+                var adapter = new SqlDataAdapter(command);
+                adapter.Fill(dataset);
+
+                var linhas = dataset.Tables[0].Rows;
+
+                List<Usuario> listaUsuarios = new List<Usuario>();
+                foreach (DataRow item in linhas)
+                {
+                    var colunas = item.ItemArray;
+                    int usuarioId = int.Parse(colunas[0].ToString());
+                    string nome = colunas[1].ToString();
+                    string email = colunas[2].ToString();
+                    string senha = colunas[3].ToString();
+
+                    Usuario usuarioRetornado = new Usuario(usuarioId, nome, email, senha);
+                    listaUsuarios.Add(usuarioRetornado);
+                }
+                connection.Close();
+                return listaUsuarios;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Ops, ocorreu um erro: " + ex.Message);
+                throw;
+            }
+        }
+        static List<Usuario> AtualizarUsuario(int id, string nome, string email)
+        {
+            try
+            {
+                var connection = Conexao.PegarConexao();
+                connection.Open();
+                var query = "update usuarios set usuarionome = @nome, usuarioemail = @email where usuariosid = @id";
+                var command = new SqlCommand(query, connection);
+
+                command.Parameters.Add("@id", SqlDbType.Int).Value = id;
+                command.Parameters.Add("@nome", SqlDbType.VarChar).Value = nome;
+                command.Parameters.Add("@email", SqlDbType.VarChar).Value = email;
+                command.ExecuteNonQuery();
+
+                connection.Close();
+                Console.WriteLine("Usuario atualizado com sucesso");
+
+                return BuscarUsuarioPorId(id);
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Ops, ocorreu um erro: " + ex.Message);
+                throw;
+            }
+
+        }
+
+        static List<Usuario> RemoverUsuario(int id)
+        {
+            try
+            {
+                var connection = Conexao.PegarConexao();
+                connection.Open();
+                var query = "delete from usuarios where usuariosid = @id";
+                var command = new SqlCommand(query, connection);
+
+                command.Parameters.Add("@id", SqlDbType.Int).Value = id;
+            
+                command.ExecuteNonQuery();
+
+                connection.Close();
+                Console.WriteLine("Usuario atualizado com sucesso");
+
+                return BuscarUsuarioPorId(id);
+
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Ops, ocorreu um erro: " + ex.Message);
+                throw;
+            }
+        }
+    }
+}
